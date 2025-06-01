@@ -38,7 +38,7 @@ def parse_opt(known=False):
 
     parser = argparse.ArgumentParser()
     # parser.add_argument('--debugs', type=bool, default=False, help='if debug info output in terminal ')
-    parser.add_argument('--port', type=str, default='/dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0003-if00-port0', help='example: /dev/ttyUSB0')
+    parser.add_argument('--port', type=str, default='/dev/ttyUSB', help='example: /dev/ttyUSB0')
     parser.add_argument('--bps', type=int, default=921600, help='the models baud rate set; default: 921600')
     parser.add_argument('--timeout', type=int, default=20, help='set the serial port timeout; default: 20')
     # parser.add_argument('--device_type', type=int, default=0, help='0: origin_data, 1: for single imu or ucar in ROS')
@@ -46,7 +46,7 @@ def parse_opt(known=False):
     return receive_params
 
 
-def read_imu_data(port="/dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0003-if00-port0", baudrate=921600, timeout=1):
+def read_imu_data(port="/dev/ttyUSB", baudrate=921600, timeout=1):
     try:
         serial_ = serial.Serial(port=port, baudrate=baudrate, bytesize=EIGHTBITS, parity=PARITY_NONE, stopbits=STOPBITS_ONE, timeout=timeout)
         # print("baud rates = " + str(serial_.baudrate))
@@ -212,7 +212,6 @@ def read_imu_data(port="/dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Br
             temp2=False
             temp1=False
             return result
-
-
+        
     return result
-read_imu_data(port="/dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0003-if00-port0", baudrate=921600, timeout=1)
+read_imu_data(port="/dev/ttyUSB", baudrate=921600, timeout=1)
