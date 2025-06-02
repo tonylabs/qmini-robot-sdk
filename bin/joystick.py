@@ -1,7 +1,9 @@
+import os
 import pygame
-import struct
-import time
 import json
+
+# Set SDL to use dummy video driver (no display required)
+os.environ['SDL_VIDEODRIVER'] = 'dummy'
 
 class JoyStick:
     #按键定义
