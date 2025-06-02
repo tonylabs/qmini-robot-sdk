@@ -1,7 +1,3 @@
-//
-// Created by cyy on 2020/12/27.
-//
-
 #include "onnx/onnxruntime_cxx_api.h"
 #include "onnx_inference.h"
 #include "utils/config.h"

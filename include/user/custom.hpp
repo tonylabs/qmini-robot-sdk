@@ -6,8 +6,6 @@
 #include <string>
 #include <Python.h>
 #include "unitree/common/thread/thread.hpp"
-
-
 #include "unitree/robot/channel/channel_publisher.hpp"
 #include "unitree/robot/channel/channel_subscriber.hpp"
 #include <unitree/idl/hg/LowCmd_.hpp>
@@ -16,15 +14,11 @@
 #include "unitree/g1/data_buffer.hpp"
 #include "unitree/g1/motors.hpp"
 #include "unitree/g1/base_state.hpp"
-
-
 #include "IMUReader.h"
 #include "mode_switcher.h"
 #include "data_report.h"
 #include "read_txt_file.h"
-
 #include "Motor_thread.hpp"
-
 
 static const std::string HG_CMD_TOPIC = "rt/lowcmd";
 static const std::string HG_STATE_TOPIC = "rt/lowstate";
@@ -32,11 +26,9 @@ static const std::string HG_STATE_TOPIC = "rt/lowstate";
 using namespace unitree::common;
 using namespace unitree::robot;
 
-
 class G1 {
 public:
-    explicit G1(const std::string &networkInterface, bool is_test_local) : PRorAB_mode_(PR),
-                                                                           mode_machine_(0) {
+    explicit G1(const std::string &networkInterface, bool is_test_local) : PRorAB_mode_(PR), mode_machine_(0) {
 
         ChannelFactory::Instance()->Init(0, networkInterface);
         std::cout << "Initialize channel factory." << std::endl;
@@ -47,7 +39,6 @@ public:
         xRockerGamepad.InitDdsModel();
         modeSwitcher.joystickBtn = &xRockerGamepad.gamepad.joystickBtn;
 
-
         rlController = new RLController();
         rlController->init();
         rlController->dds_motor_command = &motor_command_buffer_;
@@ -57,7 +48,6 @@ public:
         rlController->reset(_is_test_local);
         rlController->jsreader=&modeSwitcher.jsreader;
 
-
         if (rlController->configParams.use_sim_gait)
             ReadTxtFile::get_data_to_vector(rlController->sim_gait_data);
 
@@ -65,47 +55,37 @@ public:
         control_dt_ = rlController->configParams.control_dt;
         rlController->_rl_time_step = control_dt_;
         float motor_dt_ = 0.002;
-        control_thread_ptr_ = CreateRecurrentThreadEx("control", UT_CPU_ID_NONE, control_dt_ * 1e6,
-                                                      &G1::Control, this);
+        control_thread_ptr_ = CreateRecurrentThreadEx("control", UT_CPU_ID_NONE, control_dt_ * 1e6, &G1::Control, this);
         usleep(0.1 * 1e6);
 
         ///command_writer 0.002s
         lowcmd_publisher_.reset(new ChannelPublisher<unitree_hg::msg::dds_::LowCmd_>(HG_CMD_TOPIC));
         lowcmd_publisher_->InitChannel();
-        command_writer_ptr_ = CreateRecurrentThreadEx("command_writer", UT_CPU_ID_NONE, motor_dt_ * 1e6,
-                                                      &G1::JointStateReadWriter, this);
+        command_writer_ptr_ = CreateRecurrentThreadEx("command_writer", UT_CPU_ID_NONE, motor_dt_ * 1e6, &G1::JointStateReadWriter, this);
 
-                                          
-        
         usleep(0.1 * 1e6);
 
         ///command_writer 0.002s
         PyEval_ReleaseLock();
-        imu_thread_ptr_ = CreateRecurrentThreadEx("imu", UT_CPU_ID_NONE, 0.003 * 1e6,
-                                                  &G1::IMUStateReader, this);
+        imu_thread_ptr_ = CreateRecurrentThreadEx("imu", UT_CPU_ID_NONE, 0.003 * 1e6, &G1::IMUStateReader, this);
         usleep(0.1 * 1e6);
 
         ///joystick 0.03s
-        joystick_thread_ptr_ = CreateRecurrentThreadEx("joystick", UT_CPU_ID_NONE, 0.004 * 1e6,
-                                                       &G1::RunJoystick, this);
+        joystick_thread_ptr_ = CreateRecurrentThreadEx("joystick", UT_CPU_ID_NONE, 0.004 * 1e6, &G1::RunJoystick, this);
         usleep(0.1 * 1e6);
-
 
         ///report_rpy 0.02s
         dataReporter.init(true, true);
-        report_rpy_ptr_ = CreateRecurrentThreadEx("report_rpy", UT_CPU_ID_NONE, control_dt_ * 1e6,
-                                                  &G1::ReportData, this);
+        report_rpy_ptr_ = CreateRecurrentThreadEx("report_rpy", UT_CPU_ID_NONE, control_dt_ * 1e6, &G1::ReportData, this);
         usleep(0.1 * 1e6);
 
         ///mode_process 0.05s
-        mode_process_ptr_ = CreateRecurrentThreadEx("mode_process", UT_CPU_ID_NONE, 0.02 * 1e6,
-                                                    &G1::ModeProcess, this);
+        mode_process_ptr_ = CreateRecurrentThreadEx("mode_process", UT_CPU_ID_NONE, 0.02 * 1e6, &G1::ModeProcess, this);
         usleep(0.1 * 1e6);
 
         ModeSwitcher::print_selected_mode(current_mode);
 
     }
-
 
     virtual ~G1() {
         delete rlController;
@@ -124,19 +104,12 @@ public:
 
     MotorController Motor_control;
 
-
 public:
     void JointStateReadWriter();
-
     void IMUStateReader();
-
-
     void Control();
-
     void ReportData();
-
     void RunJoystick();
-
     void ModeProcess();
 
 private:
@@ -166,15 +139,12 @@ private:
     // // ThreadPtr run_threads_[3];
     // ThreadPtr motor_threads;
 
-
     ThreadPtr report_rpy_ptr_;
     ThreadPtr mode_process_ptr_;
     ThreadPtr joystick_thread_ptr_;
 
 private:
     void RecordMotorState(const std::array<MotorData, 10> &data);
-
     void RecordBaseState();
-
     unitree_hg::msg::dds_::LowCmd_ SetMotorCmd();
 };

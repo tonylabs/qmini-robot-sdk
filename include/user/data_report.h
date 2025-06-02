@@ -16,7 +16,6 @@
 
 using namespace std;
 
-
 class DataReporter {
 public:
     DataReporter() = default;
@@ -92,19 +91,13 @@ private:
     std::vector<float> _rl_buffer;
 
     const string LEG_NAMES[2] = {"l", "r"};
-
     const string AXIS[3] = {"x", "y", "z"};
     const string QUATNAME[4] = {"w", "x", "y", "z"};
-
     const string LEG_JOINT_NAMES[5] = {"hyaw", "hrol", "hpit", "knee", "apit",};
-
     const string RPY_NAMES[3] = {"rol", "pit", "yaw"};
     const string JOINT_STATE_NAMES[4] = {"C", "P", "V", "T"};
-
     const string JOINT_STATE_NAMES2RL[3] = {"C", "E", "V"};
-
     const string SINCOS_NAMES[2] = {"sin", "cos"};
-
     const int ACT_JOINTS_NUM = 10;
 
 private:
@@ -208,7 +201,6 @@ private:
             for (int i = 0; i < ACT_JOINTS_NUM; ++i) {
                 temp.push_back(rlController->joint_tau(i));
             }
-
 
             //rpy
             for (float i: rlController->base_rpy)temp.push_back(i);

@@ -1,7 +1,3 @@
-//
-// Created by cyy on 2020/12/27.
-//
-
 #include <iostream>
 #include <vector>
 #include <chrono>
@@ -11,6 +7,7 @@
 #include <sys/time.h>
 #include <eigen3/Eigen/Dense>
 #include <assert.h>
+
 using namespace Eigen;
 using namespace std;
 
@@ -37,7 +34,7 @@ public:
         stack_dim = stack_space;
         input_node_dims = {1, input_dim * stack_dim};
         input_tensor_size = input_node_dims.at(0) * input_node_dims.at(1);
-        //        cout << "input_tensor_size: " << input_tensor_size << endl;
+        //cout << "input_tensor_size: " << input_tensor_size << endl;
     }
 
     Matrix<float, Dynamic, 1> inference(Ort::Session *session, Matrix<float, Dynamic, 1> observation) {

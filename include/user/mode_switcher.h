@@ -1,10 +1,5 @@
-//
-// Created by cyy on 24-10-7.
-//
-
 #ifndef UNITREE_SDK2_MODE_SWITCHER_H
 #define UNITREE_SDK2_MODE_SWITCHER_H
-
 
 #include <stdio.h>
 #include <iostream>

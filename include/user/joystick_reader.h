@@ -1,5 +1,6 @@
 #ifndef JOYSTICK_READER_H
 #define JOYSTICK_READER_H
+
 #include <iostream>
 #include <Python.h>
 #include <string>
@@ -10,8 +11,6 @@
 #include <json/json.h>
 
 using namespace std;
-
-
 
 class JoystickReader {
 public:
