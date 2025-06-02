@@ -92,13 +92,10 @@ add_executable(run_interface source/run_interface.cpp ${SrcFiles_user})
 
 #option(PLATFORM "arm64 or x86_64" arm64)
 #if (${PLATFORM} STREQUAL "arm64")
-target_link_libraries(run_interface ddsc unitree_sdk2 ddscxx rt pthread libonnxruntime.so yaml-cpp Python3::Python JsonCpp::JsonCpp libUnitreeMotorSDK_Arm64.so)
-#    target_link_libraries(test_interface unitree_sdk2 ddsc ddscxx rt pthread libonnxruntime.so yaml-cpp Python3::Python JsonCpp::JsonCpp libUnitreeMotorSDK_Arm64.so)
-#    target_link_libraries(imu_reader unitree_sdk2 ddsc ddscxx rt pthread libonnxruntime.so yaml-cpp Python3::Python JsonCpp::JsonCpp libUnitreeMotorSDK_Arm64.so)
+    target_link_libraries(run_interface ddsc unitree_sdk2 ddscxx rt pthread libonnxruntime.so yaml-cpp Python3::Python JsonCpp::JsonCpp libUnitreeMotorSDK_Arm64.so)
+#   target_link_libraries(test_interface ddsc unitree_sdk2 ddscxx rt pthread libonnxruntime.so yaml-cpp Python3::Python JsonCpp::JsonCpp libUnitreeMotorSDK_Arm64.so)
+#   target_link_libraries(imu_reader ddsc unitree_sdk2 ddscxx rt pthread libonnxruntime.so yaml-cpp Python3::Python JsonCpp::JsonCpp libUnitreeMotorSDK_Arm64.so)
 #elseif (${PLATFORM} STREQUAL "x86_64")
 #    target_link_libraries(run_interface unitree_sdk2 ddsc ddscxx rt pthread libonnxruntime.so yaml-cpp Python3::Python libjsoncpp.a libUnitreeMotorSDK_Linux64.so )
 #    target_link_libraries(test_interface unitree_sdk2 ddsc ddscxx rt pthread libonnxruntime.so yaml-cpp Python3::Python libjsoncpp.a libUnitreeMotorSDK_Linux64.so)
-#
 #endif ()
-
-
