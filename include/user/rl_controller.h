@@ -35,8 +35,7 @@ public:
     Vec3<float> base_rpy, base_rpy_rate, base_vel, base_acc;
     Vec4<float> base_quat;
 
-    Vec10<float> joint_pos, joint_vel, joint_tau, joint_acc, joint_pos_error, joint_act, init_joint_act, motion_test_start_joint_act,
-            motion_test_end_joint_act;
+    Vec10<float> joint_pos, joint_vel, joint_tau, joint_acc, joint_pos_error, joint_act, init_joint_act, motion_test_start_joint_act, motion_test_end_joint_act;
     Vec10<float> output_joint_act;
 
     Matrix<float, Dynamic, 1> action_increment;
@@ -45,13 +44,9 @@ public:
     DataBuffer<MotorState> *dds_motor_state = nullptr;
     DataBuffer<BaseState> *dds_base_state = nullptr;
     Gamepad *gamepad = nullptr;
-
     JoystickReader *jsreader = nullptr;
-
-
     Vec10<float> _kp, _kd;
     Vec10<float> _kp_soft, _kd_soft;
-
     ConfigParams configParams;
 
 

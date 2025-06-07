@@ -109,37 +109,63 @@ def quaternion_to_euler(qw, qx, qy, qz):
 
     return roll, pitch, yaw
 
-def initialize_imu_connection(frequency=100):
-    """Initialize a persistent connection to the OAK-D-Pro W device"""
+def initialize_imu_connection(frequency=100, max_retries=3):
+    """Initialize a persistent connection to the OAK-D-Pro W device with retry logic"""
     global device, queue, madgwick
 
+    for attempt in range(max_retries):
+        try:
+            # Clean up any existing connection first
+            cleanup_imu_connection()
+            
+            # Create pipeline
+            pipeline = dai.Pipeline()
+
+            # Create IMU node - BMI270 only supports ACCELEROMETER_RAW and GYROSCOPE_RAW
+            imu = pipeline.create(dai.node.IMU)
+            imu.enableIMUSensor(dai.IMUSensor.ACCELEROMETER_RAW, frequency)
+            imu.enableIMUSensor(dai.IMUSensor.GYROSCOPE_RAW, frequency)
+            imu.setBatchReportThreshold(1)
+            imu.setMaxBatchReports(10)
+
+            # Create output
+            imuOut = pipeline.create(dai.node.XLinkOut)
+            imuOut.setStreamName("imu")
+            imu.out.link(imuOut.input)
+
+            # Initialize Madgwick filter for quaternion estimation
+            madgwick = MadgwickFilter(beta=0.1, sample_freq=frequency)
+
+            # Connect to device and start pipeline
+            device = dai.Device(pipeline)
+            queue = device.getOutputQueue(name="imu", maxSize=50, blocking=False)
+            print(f"Connected to OAK-D-Pro W device with BMI270 IMU sensor (attempt {attempt + 1})")
+            return True
+            
+        except Exception as e:
+            print(f"Error initializing OAK-D-Pro W IMU connection (attempt {attempt + 1}/{max_retries}): {e}")
+            cleanup_imu_connection()
+            if attempt < max_retries - 1:
+                print(f"Retrying in 2 seconds...")
+                time.sleep(2)
+            else:
+                print("Failed to initialize after all retries")
+                return False
+    
+    return False
+
+def cleanup_imu_connection():
+    """Clean up the IMU connection when done"""
+    global device, queue, madgwick
     try:
-        # Create pipeline
-        pipeline = dai.Pipeline()
-
-        # Create IMU node - BMI270 only supports ACCELEROMETER_RAW and GYROSCOPE_RAW
-        imu = pipeline.create(dai.node.IMU)
-        imu.enableIMUSensor(dai.IMUSensor.ACCELEROMETER_RAW, frequency)
-        imu.enableIMUSensor(dai.IMUSensor.GYROSCOPE_RAW, frequency)
-        imu.setBatchReportThreshold(1)
-        imu.setMaxBatchReports(10)
-
-        # Create output
-        imuOut = pipeline.create(dai.node.XLinkOut)
-        imuOut.setStreamName("imu")
-        imu.out.link(imuOut.input)
-
-        # Initialize Madgwick filter for quaternion estimation
-        madgwick = MadgwickFilter(beta=0.1, sample_freq=frequency)
-
-        # Connect to device and start pipeline
-        device = dai.Device(pipeline)
-        queue = device.getOutputQueue(name="imu", maxSize=50, blocking=False)
-        print(f"Connected to OAK-D-Pro W device with BMI270 IMU sensor")
-        return True
+        if device is not None:
+            device.close()
     except Exception as e:
-        print(f"Error initializing OAK-D-Pro W IMU connection: {e}")
-        return False
+        print(f"Error during cleanup: {e}")
+    finally:
+        device = None
+        queue = None
+        madgwick = None
 
 def read_imu_data(frequency=100, timeout=1):
     """Read IMU data from OAK-D-Pro W device (BMI270 sensor)"""
@@ -187,8 +213,6 @@ def read_imu_data(frequency=100, timeout=1):
 
         # Calculate Euler angles from quaternion
         roll, pitch, yaw = quaternion_to_euler(qw, qx, qy, qz)
-
-        # Apply the same coordinate transformations as the original code
         result = {
             "Accelerometer_X": ax,
             "Accelerometer_Y": ay,
@@ -226,13 +250,6 @@ def read_imu_data(frequency=100, timeout=1):
             "qy": 0,
             "qz": 0,
         }
-
-def cleanup_imu_connection():
-    """Clean up the IMU connection when done"""
-    global device
-    if device is not None:
-        device.close()
-        device = None
 
 if __name__ == "__main__":
     args = parse_opt()
