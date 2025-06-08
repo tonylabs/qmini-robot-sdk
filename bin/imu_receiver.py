@@ -1,265 +1,180 @@
-import argparse
-import depthai as dai
-import math
+import serial
+import struct
 import time
+import math
+import argparse
 
 # Constants
 PI = 3.141592653589793
 DEG_TO_RAD = 0.017453292519943295
-isrun = True
 
-# Global variables for persistent connection
-device = None
-queue = None
-madgwick = None
 
+# 获取命令行输入参数
 def parse_opt(known=False):
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--frequency', type=int, default=100, help='IMU sampling frequency; default: 100Hz')
-    parser.add_argument('--timeout', type=int, default=20, help='set the timeout; default: 20')
+	parser = argparse.ArgumentParser()
+	parser.add_argument('--port', type=str,
+						default='/dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0',
+						help='serial port receive data')
+	parser.add_argument('--bps', type=int, default=115200, help='the models baud rate set; default: 115200')
+	parser.add_argument('--timeout', type=int, default=1, help='set the serial port timeout; default: 1')
 
-    receive_params = parser.parse_known_args()[0] if known else parser.parse_args()
-    return receive_params
+	receive_params = parser.parse_known_args()[0] if known else parser.parse_args()
+	return receive_params
 
-class MadgwickFilter:
-    """Madgwick AHRS filter for quaternion estimation from accelerometer and gyroscope"""
-    def __init__(self, beta=0.1, sample_freq=100):
-        self.beta = beta
-        self.sample_freq = sample_freq
-        self.q = [1.0, 0.0, 0.0, 0.0]  # quaternion [w, x, y, z]
 
-    def update(self, gx, gy, gz, ax, ay, az):
-        """Update quaternion with gyroscope and accelerometer data"""
-        q1, q2, q3, q4 = self.q
+def write_cmd(serial_obj, cmd_bytes, expect_response=True, wait=0.05):
+	serial_obj.write(cmd_bytes)
+	time.sleep(wait)
+	if expect_response:
+		resp = serial_obj.read_all()
+		return resp
+	return None
 
-        # Normalise accelerometer measurement
-        norm = math.sqrt(ax * ax + ay * ay + az * az)
-        if norm == 0:
-            return self.q
-        ax /= norm
-        ay /= norm
-        az /= norm
 
-        # Auxiliary variables to avoid repeated arithmetic
-        _2q1 = 2 * q1
-        _2q2 = 2 * q2
-        _2q3 = 2 * q3
-        _2q4 = 2 * q4
-        _4q1 = 4 * q1
-        _4q2 = 4 * q2
-        _4q3 = 4 * q3
-        _8q2 = 8 * q2
-        _8q3 = 8 * q3
-        q1q1 = q1 * q1
-        q2q2 = q2 * q2
-        q3q3 = q3 * q3
-        q4q4 = q4 * q4
+def enter_config_mode(serial_obj):
+	write_cmd(serial_obj, b'\xAA\x00\x3D\x00')  # Set to CONFIGMODE
+	time.sleep(0.05)
 
-        # Gradient decent algorithm corrective step
-        s1 = _4q1 * q3q3 + _2q3 * ax + _4q1 * q2q2 - _2q2 * ay
-        s2 = _4q2 * q4q4 - _2q4 * ax + 4 * q1q1 * q2 - _2q1 * ay - _4q2 + _8q2 * q2q2 + _8q2 * q3q3 + _4q2 * az
-        s3 = 4 * q1q1 * q3 + _2q1 * ax + _4q3 * q4q4 - _2q4 * ay - _4q3 + _8q3 * q2q2 + _8q3 * q3q3 + _4q3 * az
-        s4 = 4 * q2q2 * q4 - _2q2 * ax + 4 * q3q3 * q4 - _2q3 * ay
 
-        # Normalise step magnitude
-        norm = math.sqrt(s1 * s1 + s2 * s2 + s3 * s3 + s4 * s4)
-        if norm != 0:
-            s1 /= norm
-            s2 /= norm
-            s3 /= norm
-            s4 /= norm
+def set_ndof_mode(serial_obj):
+	write_cmd(serial_obj, b'\xAA\x00\x3D\x01\x0C')  # Set to NDOF mode (0x0C)
+	time.sleep(0.05)
 
-        # Apply feedback step
-        qDot1 = 0.5 * (-q2 * gx - q3 * gy - q4 * gz) - self.beta * s1
-        qDot2 = 0.5 * (q1 * gx + q3 * gz - q4 * gy) - self.beta * s2
-        qDot3 = 0.5 * (q1 * gy - q2 * gz + q4 * gx) - self.beta * s3
-        qDot4 = 0.5 * (q1 * gz + q2 * gy - q3 * gx) - self.beta * s4
 
-        # Integrate rate of change of quaternion
-        q1 += qDot1 * (1.0 / self.sample_freq)
-        q2 += qDot2 * (1.0 / self.sample_freq)
-        q3 += qDot3 * (1.0 / self.sample_freq)
-        q4 += qDot4 * (1.0 / self.sample_freq)
+def init_bno055(serial_obj):
+	enter_config_mode(serial_obj)
+	set_ndof_mode(serial_obj)
 
-        # Normalise quaternion
-        norm = math.sqrt(q1 * q1 + q2 * q2 + q3 * q3 + q4 * q4)
-        if norm != 0:
-            self.q = [q1/norm, q2/norm, q3/norm, q4/norm]
 
-        return self.q
+def read_imu_data(port="/dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0", baudrate=115200, timeout=1):
+	try:
+		objSerial = serial.Serial(
+			port=port,
+			baudrate=baudrate,
+			bytesize=serial.EIGHTBITS,
+			parity=serial.PARITY_NONE,
+			stopbits=serial.STOPBITS_ONE,
+			timeout=timeout
+		)
+	except:
+		print("error: unable to open port.")
+		exit(1)
 
-def quaternion_to_euler(qw, qx, qy, qz):
-    """Convert quaternion to Euler angles (roll, pitch, yaw)"""
-    # Roll (x-axis rotation)
-    sinr_cosp = 2 * (qw * qx + qy * qz)
-    cosr_cosp = 1 - 2 * (qx * qx + qy * qy)
-    roll = math.atan2(sinr_cosp, cosr_cosp)
+	# Initialize BNO055
+	init_bno055(objSerial)
+	time.sleep(0.2)  # 等待芯片进入稳定状态
 
-    # Pitch (y-axis rotation)
-    sinp = 2 * (qw * qy - qz * qx)
-    if abs(sinp) >= 1:
-        pitch = math.copysign(PI / 2, sinp)  # use 90 degrees if out of range
-    else:
-        pitch = math.asin(sinp)
+	result = {
+		"Accelerometer_X": 0,
+		"Accelerometer_Y": 0,
+		"Accelerometer_Z": 0,
+		"RollSpeed": 0,
+		"PitchSpeed": 0,
+		"HeadingSpeed": 0,
+		"Roll": 0,
+		"Pitch": 0,
+		"Heading": 0,
+		"qw": 0,
+		"qx": 0,
+		"qy": 0,
+		"qz": 0,
+	}
 
-    # Yaw (z-axis rotation)
-    siny_cosp = 2 * (qw * qz + qx * qy)
-    cosy_cosp = 1 - 2 * (qy * qy + qz * qz)
-    yaw = math.atan2(siny_cosp, cosy_cosp)
+	accel_ready = False
+	gyro_ready = False
+	euler_ready = False
+	quat_ready = False
 
-    return roll, pitch, yaw
+	while objSerial.isOpen():
+		try:
+			# Read accelerometer data (register 0x08, 6 bytes)
+			objSerial.write(b'\xAA\x01\x08\x06')
+			response = objSerial.read(8)
+			if len(response) >= 8 and response[0:2] == b'\xBB\x06':
+				data_bytes = response[2:8]
+				accel_x_raw = struct.unpack('<h', data_bytes[0:2])[0]
+				accel_y_raw = struct.unpack('<h', data_bytes[2:4])[0]
+				accel_z_raw = struct.unpack('<h', data_bytes[4:6])[0]
 
-def initialize_imu_connection(frequency=100, max_retries=3):
-    """Initialize a persistent connection to the OAK-D-Pro W device with retry logic"""
-    global device, queue, madgwick
+				# Convert to m/s^2 (BNO055 accelerometer scale: 1 m/s^2 = 100 LSB)
+				result["Accelerometer_X"] = accel_x_raw / 100.0
+				result["Accelerometer_Y"] = accel_y_raw / 100.0
+				result["Accelerometer_Z"] = accel_z_raw / 100.0
+				accel_ready = True
 
-    for attempt in range(max_retries):
-        try:
-            # Clean up any existing connection first
-            cleanup_imu_connection()
-            
-            # Create pipeline
-            pipeline = dai.Pipeline()
+			time.sleep(0.01)
 
-            # Create IMU node - BMI270 only supports ACCELEROMETER_RAW and GYROSCOPE_RAW
-            imu = pipeline.create(dai.node.IMU)
-            imu.enableIMUSensor(dai.IMUSensor.ACCELEROMETER_RAW, frequency)
-            imu.enableIMUSensor(dai.IMUSensor.GYROSCOPE_RAW, frequency)
-            imu.setBatchReportThreshold(1)
-            imu.setMaxBatchReports(10)
+			# Read gyroscope data (register 0x14, 6 bytes)
+			objSerial.write(b'\xAA\x01\x14\x06')
+			response = objSerial.read(8)
+			if len(response) >= 8 and response[0:2] == b'\xBB\x06':
+				data_bytes = response[2:8]
+				gyro_x_raw = struct.unpack('<h', data_bytes[0:2])[0]
+				gyro_y_raw = struct.unpack('<h', data_bytes[2:4])[0]
+				gyro_z_raw = struct.unpack('<h', data_bytes[4:6])[0]
 
-            # Create output
-            imuOut = pipeline.create(dai.node.XLinkOut)
-            imuOut.setStreamName("imu")
-            imu.out.link(imuOut.input)
+				# Convert to rad/s (BNO055 gyroscope scale: 1 dps = 16 LSB, then convert to rad/s)
+				result["RollSpeed"] = (gyro_y_raw / 16.0) * DEG_TO_RAD
+				result["PitchSpeed"] = -(gyro_x_raw / 16.0) * DEG_TO_RAD  # Inverted to match N100
+				result["HeadingSpeed"] = (gyro_z_raw / 16.0) * DEG_TO_RAD
+				gyro_ready = True
 
-            # Initialize Madgwick filter for quaternion estimation
-            madgwick = MadgwickFilter(beta=0.1, sample_freq=frequency)
+			time.sleep(0.01)
 
-            # Connect to device and start pipeline
-            device = dai.Device(pipeline)
-            queue = device.getOutputQueue(name="imu", maxSize=50, blocking=False)
-            print(f"Connected to OAK-D-Pro W device with BMI270 IMU sensor (attempt {attempt + 1})")
-            return True
-            
-        except Exception as e:
-            print(f"Error initializing OAK-D-Pro W IMU connection (attempt {attempt + 1}/{max_retries}): {e}")
-            cleanup_imu_connection()
-            if attempt < max_retries - 1:
-                print(f"Retrying in 2 seconds...")
-                time.sleep(2)
-            else:
-                print("Failed to initialize after all retries")
-                return False
-    
-    return False
+			# Read Euler angles (register 0x1A, 6 bytes)
+			objSerial.write(b'\xAA\x01\x1A\x06')
+			response = objSerial.read(8)
+			if len(response) >= 8 and response[0:2] == b'\xBB\x06':
+				data_bytes = response[2:8]
+				heading_raw = struct.unpack('<H', data_bytes[0:2])[0]
+				roll_raw = struct.unpack('<h', data_bytes[2:4])[0]
+				pitch_raw = struct.unpack('<h', data_bytes[4:6])[0]
 
-def cleanup_imu_connection():
-    """Clean up the IMU connection when done"""
-    global device, queue, madgwick
-    try:
-        if device is not None:
-            device.close()
-    except Exception as e:
-        print(f"Error during cleanup: {e}")
-    finally:
-        device = None
-        queue = None
-        madgwick = None
+				# Convert to radians (BNO055 Euler scale: 1 degree = 16 LSB)
+				heading_deg = heading_raw / 16.0
+				roll_deg = roll_raw / 16.0
+				pitch_deg = pitch_raw / 16.0
 
-def read_imu_data(frequency=100, timeout=1):
-    """Read IMU data from OAK-D-Pro W device (BMI270 sensor)"""
-    global device, queue, madgwick
+				result["Roll"] = roll_deg * DEG_TO_RAD
+				result["Pitch"] = -pitch_deg * DEG_TO_RAD  # Inverted to match N100
+				result["Heading"] = heading_deg * DEG_TO_RAD
+				euler_ready = True
 
-    # Initialize connection if not already done
-    if device is None or queue is None or madgwick is None:
-        if not initialize_imu_connection(frequency):
-            return {
-                "Accelerometer_X": 0,
-                "Accelerometer_Y": 0,
-                "Accelerometer_Z": 0,
-                "RollSpeed": 0,
-                "PitchSpeed": 0,
-                "HeadingSpeed": 0,
-                "Roll": 0,
-                "Pitch": 0,
-                "Heading": 0,
-                "qw": 0,
-                "qx": 0,
-                "qy": 0,
-                "qz": 0,
-            }
+			time.sleep(0.01)
 
-    try:
-        # Get data from the queue
-        inIMU = queue.get()
-        if inIMU is None:
-            return None
+			# Read quaternion data (register 0x20, 8 bytes)
+			objSerial.write(b'\xAA\x01\x20\x08')
+			response = objSerial.read(10)
+			if len(response) >= 10 and response[0:2] == b'\xBB\x08':
+				data_bytes = response[2:10]
+				qw_raw = struct.unpack('<h', data_bytes[0:2])[0]
+				qx_raw = struct.unpack('<h', data_bytes[2:4])[0]
+				qy_raw = struct.unpack('<h', data_bytes[4:6])[0]
+				qz_raw = struct.unpack('<h', data_bytes[6:8])[0]
 
-        imuData = inIMU.packets[-1]
+				# Convert to unit quaternion (BNO055 quaternion scale: 1 = 16384 LSB)
+				result["qw"] = qw_raw / 16384.0
+				result["qx"] = qx_raw / 16384.0
+				result["qy"] = qy_raw / 16384.0
+				result["qz"] = qz_raw / 16384.0
+				quat_ready = True
 
-        # Get raw accelerometer and gyroscope data
-        ax = imuData.acceleroMeter.x
-        ay = imuData.acceleroMeter.y
-        az = imuData.acceleroMeter.z
+			# Return result when all data is ready
+			if accel_ready and gyro_ready and euler_ready and quat_ready:
+				objSerial.close()
+				return result
 
-        gx = imuData.gyroscope.x
-        gy = imuData.gyroscope.y
-        gz = imuData.gyroscope.z
+		except Exception as e:
+			print(f"Error reading data: {e}")
+			continue
 
-        # Update Madgwick filter to get quaternion
-        quaternion = madgwick.update(gx, gy, gz, ax, ay, az)
-        qw, qx, qy, qz = quaternion
+	objSerial.close()
+	return result
 
-        # Calculate Euler angles from quaternion
-        roll, pitch, yaw = quaternion_to_euler(qw, qx, qy, qz)
-        result = {
-            "Accelerometer_X": ax,
-            "Accelerometer_Y": ay,
-            "Accelerometer_Z": az,
-            "RollSpeed": gy,  # Swapped as in original
-            "PitchSpeed": gx * -1,  # Inverted as in original
-            "HeadingSpeed": gz,
-            "Roll": pitch,  # Swapped as in original
-            "Pitch": roll * -1,  # Inverted as in original
-            "Heading": yaw,
-            "qw": qw,
-            "qx": qx,
-            "qy": qy,
-            "qz": qz,
-        }
-        return result
-
-    except Exception as e:
-        print(f"Error reading OAK-D-Pro W IMU data: {e}")
-        # Try to reinitialize the connection
-        if initialize_imu_connection(frequency):
-            return read_imu_data(frequency, timeout)  # Try again
-        return {
-            "Accelerometer_X": 0,
-            "Accelerometer_Y": 0,
-            "Accelerometer_Z": 0,
-            "RollSpeed": 0,
-            "PitchSpeed": 0,
-            "HeadingSpeed": 0,
-            "Roll": 0,
-            "Pitch": 0,
-            "Heading": 0,
-            "qw": 0,
-            "qx": 0,
-            "qy": 0,
-            "qz": 0,
-        }
 
 if __name__ == "__main__":
-    args = parse_opt()
-    try:
-        initialize_imu_connection(frequency=args.frequency)
-        while True:
-            imu_data = read_imu_data(frequency=args.frequency, timeout=args.timeout)
-            print(f"IMU Data: {imu_data}")
-            time.sleep(0.01)  # Small delay to prevent overwhelming output
-    except KeyboardInterrupt:
-        print("Exiting...")
-    finally:
-        cleanup_imu_connection()
+	# Test the function
+	data = read_imu_data()
+	print("IMU Data:")
+	for key, value in data.items():
+		print(f"{key}: {value}")
