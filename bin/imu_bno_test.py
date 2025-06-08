@@ -12,7 +12,7 @@ Byte 5 - Data 1				<..>
 Byte n						<..>
 '''
 
-objSerial = serial.Serial('/dev/ttyUSB4', 115200, timeout=1)
+objSerial = serial.Serial('/dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0', 115200, timeout=1)
 objSerial.write(b'\xAA\x01\x00\x01')
 response = objSerial.read(4)
 print('Reading IMU Response: ' + response.hex())
@@ -39,7 +39,7 @@ elif response.hex() == 'bb0106':
 elif response.hex() == 'bb0107':
 	print("IMU is in AMG mode")
 elif response.hex() == 'bb0108':
-	print("IMU is in AMG mode")
+	print("IMU is in IMU mode")
 elif response.hex() == 'bb0109':
 	print("IMU is in COMPASS mode")
 elif response.hex() == 'bb010a':
