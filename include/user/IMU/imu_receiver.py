@@ -1,248 +1,178 @@
 import argparse
-import depthai as dai
-import math
+import sys
+import serial  # 导入模块
+import serial.tools.list_ports
+import threading
+import struct
 import time
+import platform
+from serial import EIGHTBITS, PARITY_NONE, STOPBITS_ONE
 
-# Constants
+# 宏定义参数
+PI = 3.1415926
+FRAME_HEAD = str('fc')
+FRAME_END = str('fd')
+TYPE_IMU = str('40')
+TYPE_AHRS = str('41')
+TYPE_INSGPS = str('42')
+TYPE_GEODETIC_POS = str('5c')
+TYPE_GROUND = str('f0')
+TYPE_SYS_STATE = str('50')
+TYPE_BODY_ACCELERATION = str('62')
+TYPE_ACCELERATION = str('61')
+TYPE_MSG_BODY_VEL = str('60')
+IMU_LEN = str('38')  # //56
+AHRS_LEN = str('30')  # //48
+INSGPS_LEN = str('48')  # //72
+GEODETIC_POS_LEN = str('20')  # //32
+SYS_STATE_LEN = str('64')  # // 100
+BODY_ACCELERATION_LEN = str('10')  # // 16
+ACCELERATION_LEN = str('0c')  # 12
 PI = 3.141592653589793
 DEG_TO_RAD = 0.017453292519943295
 isrun = True
 
-# Global variables for persistent connection
-device = None
-queue = None
-madgwick = None
 
+# 获取命令行输入参数
 def parse_opt(known=False):
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--frequency', type=int, default=100, help='IMU sampling frequency; default: 100Hz')
-    parser.add_argument('--timeout', type=int, default=20, help='set the timeout; default: 20')
+	parser = argparse.ArgumentParser()
+	parser.add_argument('--debugs', type=bool, default=False, help='Output debug in terminal')
+	parser.add_argument('--port', type=str, default='/dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0', help='Serial port receive data')
+	parser.add_argument('--bps', type=int, default=921600, help='the models baud rate set; default: 921600')
+	parser.add_argument('--timeout', type=int, default=20, help='set the serial port timeout; default: 20')
+	# parser.add_argument('--device_type', type=int, default=0, help='0: origin_data, 1: for single imu or ucar in ROS')
+	receive_params = parser.parse_known_args()[0] if known else parser.parse_args()
+	return receive_params
 
-    receive_params = parser.parse_known_args()[0] if known else parser.parse_args()
-    return receive_params
 
-class MadgwickFilter:
-    """Madgwick AHRS filter for quaternion estimation from accelerometer and gyroscope"""
-    def __init__(self, beta=0.1, sample_freq=100):
-        self.beta = beta
-        self.sample_freq = sample_freq
-        self.q = [1.0, 0.0, 0.0, 0.0]  # quaternion [w, x, y, z]
+def read_imu_data(port='/dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0', baudrate=921600, timeout=1):
+	try:
+		serial_ = serial.Serial(port=port, baudrate=baudrate, bytesize=EIGHTBITS, parity=PARITY_NONE, stopbits=STOPBITS_ONE, timeout=timeout)
+		print("baud rates = " + str(serial_.baudrate))
+	except:
+		print("error:  unable to open port .")
+		exit(1)
 
-    def update(self, gx, gy, gz, ax, ay, az):
-        """Update quaternion with gyroscope and accelerometer data"""
-        q1, q2, q3, q4 = self.q
+	temp1 = False
+	temp2 = False
 
-        # Normalise accelerometer measurement
-        norm = math.sqrt(ax * ax + ay * ay + az * az)
-        if norm == 0:
-            return self.q
-        ax /= norm
-        ay /= norm
-        az /= norm
+	result = {
+		"Accelerometer_X": 0,
+		"Accelerometer_Y": 0,
+		"Accelerometer_Z": 0,
+		"RollSpeed": 0,
+		"PitchSpeed": 0,
+		"HeadingSpeed": 0,
+		"Roll": 0,
+		"Pitch": 0,
+		"Heading": 0,
+		"qw": 0,
+		"qx": 0,
+		"qy": 0,
+		"qz": 0,
+	}
 
-        # Auxiliary variables to avoid repeated arithmetic
-        _2q1 = 2 * q1
-        _2q2 = 2 * q2
-        _2q3 = 2 * q3
-        _2q4 = 2 * q4
-        _4q1 = 4 * q1
-        _4q2 = 4 * q2
-        _4q3 = 4 * q3
-        _8q2 = 8 * q2
-        _8q3 = 8 * q3
-        q1q1 = q1 * q1
-        q2q2 = q2 * q2
-        q3q3 = q3 * q3
-        q4q4 = q4 * q4
+	while serial_.isOpen():
+		check_head = serial_.read().hex()
+		# 校验帧头
+		if check_head != FRAME_HEAD:
+			continue
+		head_type = serial_.read().hex()
+		# 校验数据类型
+		if (head_type != TYPE_IMU and head_type != TYPE_AHRS and head_type != TYPE_INSGPS and
+				head_type != TYPE_GEODETIC_POS and head_type != 0x50 and head_type != TYPE_GROUND and
+				head_type != TYPE_SYS_STATE and head_type != TYPE_MSG_BODY_VEL and head_type != TYPE_BODY_ACCELERATION and head_type != TYPE_ACCELERATION):
+			continue
+		check_len = serial_.read().hex()
+		# 校验数据类型的长度
+		if head_type == TYPE_IMU and check_len != IMU_LEN:
+			continue
+		elif head_type == TYPE_AHRS and check_len != AHRS_LEN:
+			continue
+		elif head_type == TYPE_INSGPS and check_len != INSGPS_LEN:
+			continue
+		elif head_type == TYPE_GEODETIC_POS and check_len != GEODETIC_POS_LEN:
+			continue
+		elif head_type == TYPE_SYS_STATE and check_len != SYS_STATE_LEN:
+			continue
+		elif head_type == TYPE_GROUND or head_type == 0x50:
+			continue
+		elif head_type == TYPE_MSG_BODY_VEL and check_len != ACCELERATION_LEN:
+			print("check head type " + str(TYPE_MSG_BODY_VEL) + " failed;" + " check_LEN:" + str(check_len))
+			continue
+		elif head_type == TYPE_BODY_ACCELERATION and check_len != BODY_ACCELERATION_LEN:
+			print("check head type " + str(TYPE_BODY_ACCELERATION) + " failed;" + " check_LEN:" + str(check_len))
+			continue
+		elif head_type == TYPE_ACCELERATION and check_len != ACCELERATION_LEN:
+			print("check head type " + str(TYPE_ACCELERATION) + " failed;" + " ckeck_LEN:" + str(check_len))
+			continue
+		check_sn = serial_.read().hex()
+		head_crc8 = serial_.read().hex()
+		crc16_H_s = serial_.read().hex()
+		crc16_L_s = serial_.read().hex()
 
-        # Gradient decent algorithm corrective step
-        s1 = _4q1 * q3q3 + _2q3 * ax + _4q1 * q2q2 - _2q2 * ay
-        s2 = _4q2 * q4q4 - _2q4 * ax + 4 * q1q1 * q2 - _2q1 * ay - _4q2 + _8q2 * q2q2 + _8q2 * q3q3 + _4q2 * az
-        s3 = 4 * q1q1 * q3 + _2q1 * ax + _4q3 * q4q4 - _2q4 * ay - _4q3 + _8q3 * q2q2 + _8q3 * q3q3 + _4q3 * az
-        s4 = 4 * q2q2 * q4 - _2q2 * ax + 4 * q3q3 * q4 - _2q3 * ay
+		# 读取并解析IMU数据
+		if head_type == TYPE_IMU:
+			data_s = serial_.read(int(IMU_LEN, 16))
+			IMU_DATA = struct.unpack('12f ii', data_s[0:56])
+			# print("Accelerometer_X(m/s^2) : " + str(IMU_DATA[3]))
+			# print("Accelerometer_Y(m/s^2) : " + str(IMU_DATA[4]))
+			# print("Accelerometer_Z(m/s^2) : " + str(IMU_DATA[5]))
+			result["Accelerometer_X"] = IMU_DATA[3]
+			result["Accelerometer_Y"] = IMU_DATA[4]
+			result["Accelerometer_Z"] = IMU_DATA[5]
+			temp1 = True
 
-        # Normalise step magnitude
-        norm = math.sqrt(s1 * s1 + s2 * s2 + s3 * s3 + s4 * s4)
-        if norm != 0:
-            s1 /= norm
-            s2 /= norm
-            s3 /= norm
-            s4 /= norm
+		# 读取并解析AHRS数据
+		elif head_type == TYPE_AHRS:
+			data_s = serial_.read(int(AHRS_LEN, 16))
+			AHRS_DATA = struct.unpack('10f ii', data_s[0:48])
+			# print("RollSpeed(rad/s): " + str(AHRS_DATA[0]))
+			# print("PitchSpeed(rad/s) : " + str(AHRS_DATA[1]))
+			# print("HeadingSpeed(rad) : " + str(AHRS_DATA[2]))
+			# print("Roll(rad) : " + str(AHRS_DATA[3]))
+			# print("Pitch(rad) : " + str(AHRS_DATA[4]))
+			# print("Heading(rad) : " + str(AHRS_DATA[5]))
+			# print("qw : " + str(AHRS_DATA[6]))
+			# print("qx : " + str(AHRS_DATA[7]))
+			# print("qy : " + str(AHRS_DATA[8]))
+			# print("qz : " + str(AHRS_DATA[9]))
 
-        # Apply feedback step
-        qDot1 = 0.5 * (-q2 * gx - q3 * gy - q4 * gz) - self.beta * s1
-        qDot2 = 0.5 * (q1 * gx + q3 * gz - q4 * gy) - self.beta * s2
-        qDot3 = 0.5 * (q1 * gy - q2 * gz + q4 * gx) - self.beta * s3
-        qDot4 = 0.5 * (q1 * gz + q2 * gy - q3 * gx) - self.beta * s4
+			result["RollSpeed"] = AHRS_DATA[0]
+			result["PitchSpeed"] = AHRS_DATA[1]
+			result["HeadingSpeed"] = AHRS_DATA[2]
 
-        # Integrate rate of change of quaternion
-        q1 += qDot1 * (1.0 / self.sample_freq)
-        q2 += qDot2 * (1.0 / self.sample_freq)
-        q3 += qDot3 * (1.0 / self.sample_freq)
-        q4 += qDot4 * (1.0 / self.sample_freq)
+			result["Roll"] = AHRS_DATA[3]
+			result["Pitch"] = AHRS_DATA[4]
+			result["Heading"] = AHRS_DATA[5]
 
-        # Normalise quaternion
-        norm = math.sqrt(q1 * q1 + q2 * q2 + q3 * q3 + q4 * q4)
-        if norm != 0:
-            self.q = [q1/norm, q2/norm, q3/norm, q4/norm]
+			result["qw"] = AHRS_DATA[6]
+			result["qx"] = AHRS_DATA[7]
+			result["qy"] = AHRS_DATA[8]
+			result["qz"] = AHRS_DATA[9]
+			temp2 = True
 
-        return self.q
+		# result = {
+		#     "Accelerometer_X": IMU_DATA[3],
+		#     "Accelerometer_Y": IMU_DATA[4],
+		#     "Accelerometer_Z": IMU_DATA[5],
+		#     "RollSpeed": AHRS_DATA[0],
+		#     "PitchSpeed": AHRS_DATA[1],
+		#     "HeadingSpeed": AHRS_DATA[2],
+		#     "Roll": AHRS_DATA[3],
+		#     "Pitch": AHRS_DATA[4],
+		#     "Heading": AHRS_DATA[5],
+		#     "qw": AHRS_DATA[6],
+		#     "qx": AHRS_DATA[7],
+		#     "qy": AHRS_DATA[8],
+		#     "qz": AHRS_DATA[9],
+		# }
 
-def quaternion_to_euler(qw, qx, qy, qz):
-    """Convert quaternion to Euler angles (roll, pitch, yaw)"""
-    # Roll (x-axis rotation)
-    sinr_cosp = 2 * (qw * qx + qy * qz)
-    cosr_cosp = 1 - 2 * (qx * qx + qy * qy)
-    roll = math.atan2(sinr_cosp, cosr_cosp)
+		if temp1 is True and temp2 is True:
+			print(result)
+			temp2 = False
+			temp1 = False
+			return result
 
-    # Pitch (y-axis rotation)
-    sinp = 2 * (qw * qy - qz * qx)
-    if abs(sinp) >= 1:
-        pitch = math.copysign(PI / 2, sinp)  # use 90 degrees if out of range
-    else:
-        pitch = math.asin(sinp)
-
-    # Yaw (z-axis rotation)
-    siny_cosp = 2 * (qw * qz + qx * qy)
-    cosy_cosp = 1 - 2 * (qy * qy + qz * qz)
-    yaw = math.atan2(siny_cosp, cosy_cosp)
-
-    return roll, pitch, yaw
-
-def initialize_imu_connection(frequency=100):
-    """Initialize a persistent connection to the OAK-D-Pro W device"""
-    global device, queue, madgwick
-
-    try:
-        # Create pipeline
-        pipeline = dai.Pipeline()
-
-        # Create IMU node - BMI270 only supports ACCELEROMETER_RAW and GYROSCOPE_RAW
-        imu = pipeline.create(dai.node.IMU)
-        imu.enableIMUSensor(dai.IMUSensor.ACCELEROMETER_RAW, frequency)
-        imu.enableIMUSensor(dai.IMUSensor.GYROSCOPE_RAW, frequency)
-        imu.setBatchReportThreshold(1)
-        imu.setMaxBatchReports(10)
-
-        # Create output
-        imuOut = pipeline.create(dai.node.XLinkOut)
-        imuOut.setStreamName("imu")
-        imu.out.link(imuOut.input)
-
-        # Initialize Madgwick filter for quaternion estimation
-        madgwick = MadgwickFilter(beta=0.1, sample_freq=frequency)
-
-        # Connect to device and start pipeline
-        device = dai.Device(pipeline)
-        queue = device.getOutputQueue(name="imu", maxSize=50, blocking=False)
-        print(f"Connected to OAK-D-Pro W device with BMI270 IMU sensor")
-        return True
-    except Exception as e:
-        print(f"Error initializing OAK-D-Pro W IMU connection: {e}")
-        return False
-
-def read_imu_data(frequency=100, timeout=1):
-    """Read IMU data from OAK-D-Pro W device (BMI270 sensor)"""
-    global device, queue, madgwick
-
-    # Initialize connection if not already done
-    if device is None or queue is None or madgwick is None:
-        if not initialize_imu_connection(frequency):
-            return {
-                "Accelerometer_X": 0,
-                "Accelerometer_Y": 0,
-                "Accelerometer_Z": 0,
-                "RollSpeed": 0,
-                "PitchSpeed": 0,
-                "HeadingSpeed": 0,
-                "Roll": 0,
-                "Pitch": 0,
-                "Heading": 0,
-                "qw": 0,
-                "qx": 0,
-                "qy": 0,
-                "qz": 0,
-            }
-
-    try:
-        # Get data from the queue
-        inIMU = queue.get()
-        if inIMU is None:
-            return None
-
-        imuData = inIMU.packets[-1]
-
-        # Get raw accelerometer and gyroscope data
-        ax = imuData.acceleroMeter.x
-        ay = imuData.acceleroMeter.y
-        az = imuData.acceleroMeter.z
-
-        gx = imuData.gyroscope.x
-        gy = imuData.gyroscope.y
-        gz = imuData.gyroscope.z
-
-        # Update Madgwick filter to get quaternion
-        quaternion = madgwick.update(gx, gy, gz, ax, ay, az)
-        qw, qx, qy, qz = quaternion
-
-        # Calculate Euler angles from quaternion
-        roll, pitch, yaw = quaternion_to_euler(qw, qx, qy, qz)
-
-        # Apply the same coordinate transformations as the original code
-        result = {
-            "Accelerometer_X": ax,
-            "Accelerometer_Y": ay,
-            "Accelerometer_Z": az,
-            "RollSpeed": gy,  # Swapped as in original
-            "PitchSpeed": gx * -1,  # Inverted as in original
-            "HeadingSpeed": gz,
-            "Roll": pitch,  # Swapped as in original
-            "Pitch": roll * -1,  # Inverted as in original
-            "Heading": yaw,
-            "qw": qw,
-            "qx": qx,
-            "qy": qy,
-            "qz": qz,
-        }
-        return result
-
-    except Exception as e:
-        print(f"Error reading OAK-D-Pro W IMU data: {e}")
-        # Try to reinitialize the connection
-        if initialize_imu_connection(frequency):
-            return read_imu_data(frequency, timeout)  # Try again
-        return {
-            "Accelerometer_X": 0,
-            "Accelerometer_Y": 0,
-            "Accelerometer_Z": 0,
-            "RollSpeed": 0,
-            "PitchSpeed": 0,
-            "HeadingSpeed": 0,
-            "Roll": 0,
-            "Pitch": 0,
-            "Heading": 0,
-            "qw": 0,
-            "qx": 0,
-            "qy": 0,
-            "qz": 0,
-        }
-
-def cleanup_imu_connection():
-    """Clean up the IMU connection when done"""
-    global device
-    if device is not None:
-        device.close()
-        device = None
-
-if __name__ == "__main__":
-    args = parse_opt()
-    try:
-        initialize_imu_connection(frequency=args.frequency)
-        while True:
-            imu_data = read_imu_data(frequency=args.frequency, timeout=args.timeout)
-            print(f"IMU Data: {imu_data}")
-            time.sleep(0.01)  # Small delay to prevent overwhelming output
-    except KeyboardInterrupt:
-        print("Exiting...")
-    finally:
-        cleanup_imu_connection()
+	return result
+# read_imu_data(port="/dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0003-if00-port0", baudrate=921600, timeout=1)

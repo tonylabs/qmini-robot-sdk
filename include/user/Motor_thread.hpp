@@ -21,10 +21,10 @@ struct SerialGroup {
 class MotorController {
 public:
     std::vector<SerialGroup> serialGroups = {
-        {"/dev/ttyUSB0", {0, 5}},   // 上身
-        {"/dev/ttyUSB1", {1, 6}},   // Hip
-        {"/dev/ttyUSB2", {2, 3, 4}},
-        {"/dev/ttyUSB3", {7, 8, 9}}
+        {"/dev/serial/by-id/usb-FTDI_USB__-__Serial_Converter_FTA98W5B-if03-port0", {0, 5}},        //手册 UART4 - 上身
+        {"/dev/serial/by-id/usb-FTDI_USB__-__Serial_Converter_FTA98W5B-if01-port0", {1, 6}},        //手册 UART2
+        {"/dev/serial/by-id/usb-FTDI_USB__-__Serial_Converter_FTA98W5B-if00-port0", {2, 3, 4}},     //手册 UART1 - 右腿
+        {"/dev/serial/by-id/usb-FTDI_USB__-__Serial_Converter_FTA98W5B-if02-port0", {7, 8, 9}}      //手册 UART3 - 右腿
     };
     MotorController() {
         InitializeSerialPorts();

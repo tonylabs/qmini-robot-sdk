@@ -56,7 +56,7 @@ void G1::Control() {
     if (control_count % 150 == 0) {
         control_count = 0;
         cout << "q: " << rlController->joint_pos.transpose() << endl;
-//        cout << "rpy: " << rlController->base_rpy.transpose() << endl;
+        cout << "rpy: " << rlController->base_rpy.transpose() << endl;
     }
 }
 
