@@ -1,3 +1,4 @@
+#include <iomanip>
 #include "user/custom.hpp"
 
 void G1::ModeProcess() {
@@ -55,8 +56,21 @@ void G1::Control() {
     control_count++;
     if (control_count % 150 == 0) {
         control_count = 0;
-        cout << "q: " << rlController->joint_pos.transpose() << endl;
-        cout << "rpy: " << rlController->base_rpy.transpose() << endl;
+        vector<string> joint_names = {"HIP_YAW_LEFT", "HIP_ROLL_LEFT", "HIP_PITCH_LEFT", "KNEE_LEFT", "ANKLE_LEFT", "HIP_YAW_RIGHT", "HIP_ROLL_RIGHT", "HIP_PITCH_RIGHT", "KNEE_RIGHT", "ANKLE_RIGHT"};
+        cout << "Joint Positions: [ ";
+        for (int i = 0; i < rlController->joint_pos.size() && i < joint_names.size(); i++) {
+            cout << rlController->joint_pos(i);
+            if (i < rlController->joint_pos.size() - 1 && i < joint_names.size() - 1) {
+                if (i == 4) {
+                    cout << ",      ";  // Extra spaces after LEFT indexes
+                } else {
+                    cout << ", ";
+                }
+            }
+        }
+        cout << " ]";
+        cout << endl;
+        //cout << "rpy: " << rlController->base_rpy.transpose() << endl;
     }
 }
 

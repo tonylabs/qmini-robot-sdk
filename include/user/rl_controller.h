@@ -96,17 +96,11 @@ public:
 
 
     void rl_control();
-
     void sim_gait_control();
-
     void reset(bool is_test_local);
-
     void stand_control(float ratio);
-
     void sin_control(float amplitude, float f, float motion_time);
-
     void convert_dds_state2rl_state();
-
     void set_rl_joint_act2dds_motor_command(char mode);
 
 public:

@@ -20,12 +20,14 @@ struct SerialGroup {
 
 class MotorController {
 public:
+
     std::vector<SerialGroup> serialGroups = {
-        {"/dev/serial/by-id/usb-FTDI_USB__-__Serial_Converter_FTA98W5B-if03-port0", {0, 5}},        //手册 UART4 - 上身
-        {"/dev/serial/by-id/usb-FTDI_USB__-__Serial_Converter_FTA98W5B-if01-port0", {1, 6}},        //手册 UART2
-        {"/dev/serial/by-id/usb-FTDI_USB__-__Serial_Converter_FTA98W5B-if00-port0", {2, 3, 4}},     //手册 UART1 - 右腿
-        {"/dev/serial/by-id/usb-FTDI_USB__-__Serial_Converter_FTA98W5B-if02-port0", {7, 8, 9}}      //手册 UART3 - 右腿
+        {"/dev/serial/by-id/usb-FTDI_USB__-__Serial_Converter_FTA98W5B-if03-port0", { 0, 5 }},      // UART4 - HIP_YAW (髋偏航) : 髋关节绕垂直轴（Z轴）的旋转运动，也就是大腿左右摆动的动作，类似于人体站立时左右转动大腿的运动
+        {"/dev/serial/by-id/usb-FTDI_USB__-__Serial_Converter_FTA98W5B-if02-port0", { 1, 6}},       // UART3 - HIP_ROLL (髋横滚) : 髋关节绕前后轴（X轴）的旋转运动，也就是大腿向身体内侧或外侧倾斜的动作，类似于人体做侧抬腿的运动
+        {"/dev/serial/by-id/usb-FTDI_USB__-__Serial_Converter_FTA98W5B-if00-port0", { 2, 3, 4 }},   // UART1 - Right Leg UART1
+        {"/dev/serial/by-id/usb-FTDI_USB__-__Serial_Converter_FTA98W5B-if01-port0", { 7, 8, 9 }}    // UART2 - Left Leg
     };
+
     MotorController() {
         InitializeSerialPorts();
         for(std::array<ThreadData, 4>::iterator td = threadData.begin(); td != threadData.end(); ++td) {
@@ -39,12 +41,14 @@ public:
         workerThreads[4] = std::thread(&MotorController::MonitorThread, this);
         std::cout << "Start motor thread： Done!" << std::endl;
     }
+
     ~MotorController() {
         Stop();
         if (dataFile.is_open()) {
             dataFile.close();
         }
     }
+
     struct ThreadData {
         std::atomic<int> count{0};
         std::chrono::time_point<std::chrono::high_resolution_clock> start_time;
@@ -78,10 +82,9 @@ public:
     }
 
 public:
-    /// Startq（0位偏移）： 左腿roll 内扣，则需增大，右腿内扣则需减小
-    // Original
-    std::array<float, 10> Startq ={ 0.65, 0.45, 1.28, 0.86, 0.56, 0.8, 0., 0.301131, 0.513495, 0.2 };
-    //std::array<float, 10> Startq ={ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -0.0, 0.0, 0.0, 0.0 };
+    //Startq（0位偏移）： 左腿 roll 内扣，则需增大，右腿内扣则需减小
+    //std::array<float, 10> Startq = { 0.65, 0.45, 1.28, 0.86, 0.56,     0.8, 0.0, 0.301131, 0.513495, 0.2 };
+    std::array<float, 10> Startq = { 0, 0, 0, 0, 0,      0, 0, 0, 0, 0 };
 
     std::array<MotorData, 10> allMotorData;
     float Speed_Ratio = 6.33;
