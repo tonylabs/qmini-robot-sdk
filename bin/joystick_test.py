@@ -11,7 +11,7 @@ class PS4JoystickTester:
         
         # Check if joystick is connected
         if pygame.joystick.get_count() == 0:
-            print("❌ No joystick detected! Please connect your PS4 controller.")
+            print("❌ No joystick detected! Please connect your controller.")
             sys.exit(1)
         
         self.joystick = pygame.joystick.Joystick(0)
@@ -22,7 +22,7 @@ class PS4JoystickTester:
         print(f"🎮 Number of buttons: {self.joystick.get_numbuttons()}")
         print(f"🧭 Number of hats: {self.joystick.get_numhats()}")
         print("\n" + "="*60)
-        print("🎮 PS4 CONTROLLER TEST - Press buttons and move sticks!")
+        print("🎮 CONTROLLER TEST - Press buttons and move sticks!")
         print("Press Ctrl+C to exit")
         print("="*60 + "\n")
         
