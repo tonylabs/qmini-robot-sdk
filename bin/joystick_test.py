@@ -31,19 +31,20 @@ class PS4JoystickTester:
         
         # Button mapping for PS4 controller
         self.button_names = {
-            0: "❌ Cross (A)",
-            1: "⭕ Circle (B)", 
-            2: "🔺 Triangle (Y)",
-            3: "🔲 Square (X)",
-            4: "L1",
-            5: "R1",
-            6: "L2",
-            7: "R2",
-            8: "Share (SELECT)",
-            9: "Options (START)",
-            10: "PS Button",
-            11: "Left Stick Click",
-            12: "Right Stick Click"
+            0: "🔲 Square (0)",
+            1: "❌ Cross (1)",
+            2: "⭕ Circle (2)",
+            3: "🔺 Triangle (3)",
+            4: "L1 (4)",
+            5: "R1 (5)",
+            6: "L2 (6)",
+            7: "R2 (7)",
+            8: "Share (SELECT) (8)",
+            9: "Options (START) (9)",
+            10: "Left Stick Click (10)",
+            11: "Right Stick Click (11)",
+            12: "PS Button (12)",
+            13: "Touch Panel (13)"
         }
         
         # Axis mapping
