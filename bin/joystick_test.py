@@ -4,6 +4,9 @@ import time
 import sys
 import os
 
+# Set SDL to use dummy video driver (no display required)
+os.environ['SDL_VIDEODRIVER'] = 'dummy'
+
 class PS4JoystickTester:
     def __init__(self):
         pygame.init()
