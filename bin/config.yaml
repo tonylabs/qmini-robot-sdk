@@ -18,11 +18,12 @@ kp_yaw_ctrl: 2.
 #reference joint action
 sin_joint_idx: 1
 use_sim_gait: false
-ref_joint_act: [ 0.934001, -0.0612989, 0.781285, 0.209494, 1.55099,      -0.255385, 0.485328, -0.0809112, 0.735186, -0.914993 ] #Standing Mode Joint Positions
+ref_joint_act: [ 0.330302, 0.317694, 0.900974, 1.23461, 0.715731,      0.323668, -0.0274747, -0.0328365, 0.180606, -0.0646634 ] #Standing Mode Joint Positions
+#ref_joint_act:[ RL_HIP_YAW, RL_HIP_ROLL, RL_HIP_PITCH, RL_KNEE,  RL_ANKLE,     LL_HIP_YAW, LL_HIP_ROLL, LL_HIP_PITCH,  LL_KNEE,    LL_ANKLE]
 
 #joint position limits
-act_pos_low:  [ 1.35879, 0.183285, 2.19075, -0.959887, 2.71497,      -0.466041, 0.271476, -1.51338, 1.89618, -2.0381 ] # Legs to rear : Right to Left
-act_pos_high: [ 0.70102, -0.740607, 0.0860793, 0.935683, 0.184447,      0.109783, 1.2521, 0.598053, 0.0264752, 0.490604 ] # Legs to front : Right to Left
+act_pos_low:  [ -1, -1, -1, -1, -1,      -1, -1, -1, -1, -1 ] # Legs to rear : Right to Left
+act_pos_high: [ 2, 2, 2, 2, 2,      2, 2, 2, 2, 2 ] # Legs to front : Right to Left
 
 #motor stiffness and damping
 # for soft control
