@@ -22,10 +22,10 @@ class MotorController {
 public:
 
     std::vector<SerialGroup> serialGroups = {
-        {"/dev/serial/by-id/usb-FTDI_USB__-__Serial_Converter_FTA98W5B-if03-port0", { 0, 5 }},      // UART4 - HIP_YAW (髋偏航) : 髋关节绕垂直轴（Z轴）的旋转运动，也就是大腿左右摆动的动作，类似于人体站立时左右转动大腿的运动
-        {"/dev/serial/by-id/usb-FTDI_USB__-__Serial_Converter_FTA98W5B-if02-port0", { 1, 6}},       // UART3 - HIP_ROLL (髋横滚) : 髋关节绕前后轴（X轴）的旋转运动，也就是大腿向身体内侧或外侧倾斜的动作，类似于人体做侧抬腿的运动
-        {"/dev/serial/by-id/usb-FTDI_USB__-__Serial_Converter_FTA98W5B-if00-port0", { 2, 3, 4 }},   // UART1 - Right Leg UART1
-        {"/dev/serial/by-id/usb-FTDI_USB__-__Serial_Converter_FTA98W5B-if01-port0", { 7, 8, 9 }}    // UART2 - Left Leg
+        {"/dev/serial/by-id/usb-FTDI_USB__-__Serial_Converter_FTA98W5B-if03-port0", { 0, 5 }},      // UART4
+        {"/dev/serial/by-id/usb-FTDI_USB__-__Serial_Converter_FTA98W5B-if02-port0", { 1, 6}},       // UART3
+        {"/dev/serial/by-id/usb-FTDI_USB__-__Serial_Converter_FTA98W5B-if00-port0", { 2, 3, 4 }},   // UART1
+        {"/dev/serial/by-id/usb-FTDI_USB__-__Serial_Converter_FTA98W5B-if01-port0", { 7, 8, 9 }}    // UART2
     };
 
     MotorController() {
@@ -83,12 +83,12 @@ public:
 
 public:
     //Startq（0位偏移）： 左腿 roll 内扣，则需增大，右腿内扣则需减小
-    //std::array<float, 10> Startq = { 0.65, 0.45, 1.28, 0.86, 0.56,     0.8, 0.0, 0.301131, 0.513495, 0.2 };
-    std::array<float, 10> Startq = { 0, 0, 0, 0, 0,      0, 0, 0, 0, 0 };
-
+    std::array<float, 10> Startq = { 0.32, 0.123, 0.257, 0.897, 0.771, 0.585, 0.243, 0.61, 0.485, 0.0252 };
+    //std::array<float, 10> Startq = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
     std::array<MotorData, 10> allMotorData;
     float Speed_Ratio = 6.33;
     float Gear_Ratio = 3.;
+
     std::vector<std::unique_ptr<SerialPort>> serialPorts;
     std::ofstream dataFile;
     std::chrono::time_point<std::chrono::system_clock> lastSaveTime;

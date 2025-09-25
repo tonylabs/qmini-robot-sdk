@@ -18,17 +18,19 @@ kp_yaw_ctrl: 2.
 #reference joint action
 sin_joint_idx: 1
 use_sim_gait: false
-ref_joint_act: [ 0.330302, 0.317694, 0.900974, 1.23461, 0.715731,      0.323668, -0.0274747, -0.0328365, 0.180606, -0.0646634 ] #Standing Mode Joint Positions
-#ref_joint_act:[ RL_HIP_YAW, RL_HIP_ROLL, RL_HIP_PITCH, RL_KNEE,  RL_ANKLE,     LL_HIP_YAW, LL_HIP_ROLL, LL_HIP_PITCH,  LL_KNEE,    LL_ANKLE]
+
+#ref_joint_act: [ 0.0, -0.02, 0.47, 0.58, 0.13, 0.0, 0.03, -0.48, -0.56, -0.07 ] #Standing Mode Joint Positions
+ref_joint_act: [ 0.55, 0.25, -1.35, 1.2, -1.1,  -0.55, -0.25, 1.35, -1.2, 1.1 ]
 
 #joint position limits
-act_pos_low:  [ -1, -1, -1, -1, -1,      -1, -1, -1, -1, -1 ] # Legs to rear : Right to Left
-act_pos_high: [ 2, 2, 2, 2, 2,      2, 2, 2, 2, 2 ] # Legs to front : Right to Left
+act_pos_low: [ -0.1, -0.3, -2.1, 0, -2.5, -0.7, -0.6, 0.0, -2.1, 0.0 ]
+act_pos_high: [ 0.7, 0.6, 0.0, 2.1, 0, 0.1, 0.3, 2.1, 0.0, 2.5 ]
 
-#motor stiffness and damping
-# for soft control
-kp_soft: [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 ] #(hip*3+knee*1+ankle*1)*2
-kd_soft: [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 ] #(hip*3+knee*1+ankle*1)*2
+# Actuator stiffness and damping
+# For soft control
+kp_soft: [ 0.0, 0.0, 0.0, 0.0, 0.0,     0.0, 0.0, 0.0, 0.0, 0.0 ]   #(hip*3+knee*1+ankle*1)*2
+kd_soft: [ 0.0, 0.0, 0.0, 0.0, 0.0,      0.0, 0.0, 0.0, 0.0, 0.0 ]     #(hip*3+knee*1+ankle*1)*2
+#正视机器人: 右腿 1-5, 左腿 1-5
 
 # for position stand and rl control
 kp: [ 1, 0.5, 1.5, 1, 1, 1, 0.5, 1.5, 1, 1 ] #(hip*3+knee*1+ankle*1)*2
