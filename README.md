@@ -51,15 +51,24 @@ make
 sudo make install
 ```
 
-3. Install OnnxRuntime (copy libonnxruntime.so libonnxruntime.so.1.17.1 to /usr/lib or /usr/local/lib)
-4. 
+3. Install OnnxRuntime
+
 ```bash
 sudo cp -r libonnxruntime.so libonnxruntime.so.1.17.1 /usr/lib
-or
 sudo cp -r libonnxruntime.so libonnxruntime.so.1.17.1 /usr/local/lib
-sudo cp libUnitreeMotorSDK_Linux64.so /usr/local/lib/ /usr/lib/
-or
-sudo cp libUnitreeMotorSDK_arm64.so /usr/local/lib/ /usr/lib/
+sudo ldconfig
+```
+
+4. Load Unitree Motor SDK Lib:
+```bash
+sudo cp lib/m8010motor/libUnitreeMotorSDK_Linux64.so /usr/local/lib/
+sudo cp lib/m8010motor/libUnitreeMotorSDK_Linux64.so /usr/lib/
+sudo ldconfig
+
+#or
+sudo cp lib/m8010motor/libUnitreeMotorSDK_Arm64.so /usr/local/lib/
+sudo cp lib/m8010motor/libUnitreeMotorSDK_Arm64.so /usr/lib/
+sudo ldconfig
 ```
 
 ## Full steps of operating RoboTamerSdk4Qmini on the real Qmini robot
@@ -67,15 +76,11 @@ sudo cp libUnitreeMotorSDK_arm64.so /usr/local/lib/ /usr/lib/
 #### Before start
 
 ```bash
-$ cd /home/ubuntu/qmini/build
-$ cmake -DPLATFORM=arm64 .. && make && cd ../bin
+cd ~/qmini_sdk/build
+cmake -DPLATFORM=arm64 .. && make && cd ../bin
 ```
-#### Step 1: Check the start-up posture of the robot
-#### Step 2: Boot up both the joy stick and the robot
-#### Step 3: Run the executable file
 
 ```bash
-$ ./run_interface
-#or
-$ sudo ./run_interface
+cd ~/qmini_sdk/bin
+./run_interface
 ```
