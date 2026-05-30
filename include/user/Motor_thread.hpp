@@ -10,8 +10,11 @@
 #include <csignal>
 #include "serialPort/SerialPort.h"
 #include "unitreeMotor/unitreeMotor.h"
+#include "utils/config.h"
 #include <fstream>
 #include <iomanip>
+#include <algorithm>
+#include <stdexcept>
 
 struct SerialGroup {
     const char *port;
@@ -29,6 +32,8 @@ public:
     };
 
     MotorController() {
+        LoadStartqFromConfig();
+        motorReplyOk.fill(true);
         InitializeSerialPorts();
         for(std::array<ThreadData, 4>::iterator td = threadData.begin(); td != threadData.end(); ++td) {
             td->start_time = std::chrono::high_resolution_clock::now();
@@ -82,10 +87,17 @@ public:
     }
 
 public:
-    //Startq（0位偏移）： 左腿 roll 内扣，则需增大，右腿内扣则需减小
-    std::array<float, 10> Startq = { 0.32, 0.123, 0.257, 0.897, 0.771, 0.585, 0.243, 0.61, 0.485, 0.0252 };
-    //std::array<float, 10> Startq = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+    std::array<float, 10> Startq = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
     std::array<MotorData, 10> allMotorData;
+
+    // Logical motor index (0-9) -> joint name, mirrors the ordering used in custom.cpp
+    static constexpr std::array<const char*, 10> kJointNames = {
+        "HIP_YAW_LEFT", "HIP_ROLL_LEFT", "HIP_PITCH_LEFT", "KNEE_LEFT", "ANKLE_LEFT",
+        "HIP_YAW_RIGHT", "HIP_ROLL_RIGHT", "HIP_PITCH_RIGHT", "KNEE_RIGHT", "ANKLE_RIGHT"
+    };
+    // Per-motor comm health. Each index is written by exactly one RunThread, so no lock needed.
+    std::array<bool, 10> motorReplyOk;
+    std::array<unsigned long, 10> motorFailStreak{};
     float Speed_Ratio = 6.33;
     float Gear_Ratio = 3.;
 
@@ -93,6 +105,25 @@ public:
     std::ofstream dataFile;
     std::chrono::time_point<std::chrono::system_clock> lastSaveTime;
     const std::chrono::milliseconds saveInterval{4}; // 100ms 保存一次
+
+    // Populate Startq (zero-position offsets) from config.yaml; falls back to zeros on any error.
+    void LoadStartqFromConfig() {
+        try {
+            ConfigParams cfg;
+            if (cfg.startq.size() == Startq.size()) {
+                std::copy(cfg.startq.begin(), cfg.startq.end(), Startq.begin());
+                std::cout << "Loaded Startq from config.yaml" << std::endl;
+            } else {
+                std::cerr << "config.yaml 'startq' must have " << Startq.size()
+                          << " entries (got " << cfg.startq.size() << "); using zeros." << std::endl;
+                Startq.fill(0.f);
+            }
+        } catch (const std::exception& e) {
+            std::cerr << "Failed to load startq from config.yaml: " << e.what()
+                      << "; using zeros." << std::endl;
+            Startq.fill(0.f);
+        }
+    }
 
     void InitializeSerialPorts() {
         for(std::vector<SerialGroup>::iterator group = serialGroups.begin(); group != serialGroups.end(); ++group) {
@@ -115,7 +146,8 @@ public:
                 MotorData data;
                 ConfigureMotorCommand(cmd, *motorID, current_cmd_);
                 data.motorType = MotorType::GO_M8010_6;
-                serial.sendRecv(&cmd, &data);
+                bool ok = serial.sendRecv(&cmd, &data);
+                ReportMotorComm(*motorID, cmd.id, serialGroups[N].port, ok && data.correct);
                 ParseMotorFeedback(data, *motorID);
             }
             td.count++;
@@ -172,6 +204,30 @@ public:
         const float ratio = is_special ? (Speed_Ratio * Gear_Ratio) : Speed_Ratio;
         cmd.q = (dds_low_command.motor_cmd().at(motorID).q() + Startq[motorID]) * ratio;
         cmd.dq = dds_low_command.motor_cmd().at(motorID).dq() * ratio;
+    }
+
+    // Reports motor comm health by LOGICAL index (0-9) + joint name + physical port.
+    // The SDK's own "motor id=N" refers to the on-bus channel id (cmd.id), which repeats
+    // across the 4 ports and can't tell you which physical motor failed; this can.
+    void ReportMotorComm(int motorID, int channelID, const char* port, bool ok) {
+        if (ok) {
+            if (!motorReplyOk[motorID]) {
+                std::lock_guard<std::mutex> lk(printMutex);
+                std::cout << "\033[32m[MOTOR OK] index " << motorID << " (" << kJointNames[motorID]
+                          << ") replying again after " << motorFailStreak[motorID] << " misses\033[0m" << std::endl;
+            }
+            motorReplyOk[motorID] = true;
+            motorFailStreak[motorID] = 0;
+            return;
+        }
+        motorFailStreak[motorID]++;
+        if (motorReplyOk[motorID] || motorFailStreak[motorID] % 500 == 0) {
+            std::lock_guard<std::mutex> lk(printMutex);
+            std::cout << "\033[31m[MOTOR FAULT] index " << motorID << " (" << kJointNames[motorID]
+                      << "), bus channel id=" << channelID << ", port=" << port
+                      << " -> no valid reply (x" << motorFailStreak[motorID] << ")\033[0m" << std::endl;
+        }
+        motorReplyOk[motorID] = false;
     }
 
     void ParseMotorFeedback(MotorData& data, int motorID) {

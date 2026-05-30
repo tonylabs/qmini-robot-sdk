@@ -27,6 +27,8 @@ public:
         act_pos_high = params["act_pos_high"].as < std::vector < float > > ();
         act_pos_low = params["act_pos_low"].as < std::vector < float > > ();
         ref_joint_act = params["ref_joint_act"].as < std::vector < float > > ();
+        if (params["startq"])
+            startq = params["startq"].as < std::vector < float > > ();
     }
 
 public:
@@ -50,6 +52,7 @@ public:
     std::vector<float> act_pos_high = {0.};
     std::vector<float> act_pos_low = {0.};
     std::vector<float> ref_joint_act = {0.};
+    std::vector<float> startq = std::vector<float>(10, 0.f);
 };
 
 #endif
