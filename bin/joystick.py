@@ -31,6 +31,8 @@ class JoyStick:
     def initjoystick(self):
         pygame.init()
         pygame.joystick.init()
+        if pygame.joystick.get_count() == 0:
+            raise RuntimeError("No joystick detected")
         self.joystick = pygame.joystick.Joystick(0)
         self.joystick.init()
 
@@ -42,8 +44,9 @@ class JoyStick:
             if event.type == pygame.JOYAXISMOTION:
                 self.LaxiX = self.joystick.get_axis(0)
                 self.LaxiY = self.joystick.get_axis(1)
-                self.RaxiX = self.joystick.get_axis(2)
-                self.RaxiY = self.joystick.get_axis(3)
+                # Xbox 360 (Linux xpad): axis 2 is LT; right stick is axes 3 (X) and 4 (Y)
+                self.RaxiX = self.joystick.get_axis(3)
+                self.RaxiY = self.joystick.get_axis(4)
 
             if event.type == pygame.JOYHATMOTION:
                 hat = self.joystick.get_hat(0)
@@ -51,28 +54,32 @@ class JoyStick:
                 self.hatY = hat[1]
 
             if event.type == pygame.JOYBUTTONDOWN:
+                # Xbox 360 (Linux xpad) button layout: A=0 B=1 X=2 Y=3 LB=4 RB=5 Back=6 Start=7 Guide=8 LStick=9 RStick=10
                 self.butA = self.joystick.get_button(0)
                 self.butB = self.joystick.get_button(1)
-                self.butX = self.joystick.get_button(3)
-                self.butY = self.joystick.get_button(4)
-                self.L1 = self.joystick.get_button(6)
-                self.R1 = self.joystick.get_button(7)
-                self.L2 = self.joystick.get_button(8)
-                self.R2 = self.joystick.get_button(9)
-                self.SELECT = self.joystick.get_button(10)
-                self.START = self.joystick.get_button(11)
+                self.butX = self.joystick.get_button(2)
+                self.butY = self.joystick.get_button(3)
+                self.L1 = self.joystick.get_button(4)   # LB
+                self.R1 = self.joystick.get_button(5)   # RB
+                # LT/RT are analog triggers (axes 2 and 5), not buttons; treat as pressed when past midpoint
+                self.L2 = 1 if self.joystick.get_axis(2) > 0 else 0
+                self.R2 = 1 if self.joystick.get_axis(5) > 0 else 0
+                self.SELECT = self.joystick.get_button(6)   # Back
+                self.START = self.joystick.get_button(7)    # Start
 
             if event.type == pygame.JOYBUTTONUP:
+                # Xbox 360 (Linux xpad) button layout: A=0 B=1 X=2 Y=3 LB=4 RB=5 Back=6 Start=7 Guide=8 LStick=9 RStick=10
                 self.butA = self.joystick.get_button(0)
                 self.butB = self.joystick.get_button(1)
-                self.butX = self.joystick.get_button(3)
-                self.butY = self.joystick.get_button(4)
-                self.L1 = self.joystick.get_button(6)
-                self.R1 = self.joystick.get_button(7)
-                self.L2 = self.joystick.get_button(8)
-                self.R2 = self.joystick.get_button(9)
-                self.SELECT = self.joystick.get_button(10)
-                self.START = self.joystick.get_button(11)
+                self.butX = self.joystick.get_button(2)
+                self.butY = self.joystick.get_button(3)
+                self.L1 = self.joystick.get_button(4)   # LB
+                self.R1 = self.joystick.get_button(5)   # RB
+                # LT/RT are analog triggers (axes 2 and 5), not buttons; treat as pressed when past midpoint
+                self.L2 = 1 if self.joystick.get_axis(2) > 0 else 0
+                self.R2 = 1 if self.joystick.get_axis(5) > 0 else 0
+                self.SELECT = self.joystick.get_button(6)   # Back
+                self.START = self.joystick.get_button(7)    # Start
         
     def display(self):
         print('================')
@@ -104,6 +111,11 @@ joy = JoyStick()
 def init_joystick():
     global joy
     joy.initjoystick()
+
+def get_joystick_count():
+    pygame.init()
+    pygame.joystick.init()
+    return pygame.joystick.get_count()
 
 def read_joystick():
     global joy

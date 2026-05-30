@@ -29,17 +29,46 @@ public:
         auto pModule = PyImport_ImportModule("joystick");
         if (!pModule) {
             PyErr_Print();
+            PyGILState_Release(qqq);
             return false;
+        }
+
+        // Abort early if no controller is connected, instead of failing every read cycle.
+        PyObject *pCount = PyObject_GetAttrString(pModule, "get_joystick_count");
+        if (pCount && PyCallable_Check(pCount)) {
+            PyObject *pNum = PyObject_CallObject(pCount, nullptr);
+            long count = pNum ? PyLong_AsLong(pNum) : 0;
+            Py_XDECREF(pNum);
+            Py_DECREF(pCount);
+            if (count <= 0) {
+                std::cerr << "No joystick detected (count=" << count << ")." << std::endl;
+                Py_DECREF(pModule);
+                PyGILState_Release(qqq);
+                return false;
+            }
+        } else {
+            Py_XDECREF(pCount);
+            PyErr_Clear();
         }
 
         PyObject *pFunc = PyObject_GetAttrString(pModule, "init_joystick");
         if (!pFunc || !PyCallable_Check(pFunc)) {
             PyErr_Print();
+            Py_XDECREF(pFunc);
             Py_DECREF(pModule);
+            PyGILState_Release(qqq);
             return false;
         }
 
-        PyObject_CallObject(pFunc, nullptr);
+        PyObject *pRet = PyObject_CallObject(pFunc, nullptr);
+        if (!pRet) {                 // init_joystick() raised (e.g. RuntimeError: no joystick)
+            PyErr_Print();
+            Py_DECREF(pFunc);
+            Py_DECREF(pModule);
+            PyGILState_Release(qqq);
+            return false;
+        }
+        Py_DECREF(pRet);
 
         Py_DECREF(pFunc);
         Py_DECREF(pModule);

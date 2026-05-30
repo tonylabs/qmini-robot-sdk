@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <iostream>
+#include <cstdlib>
 #include <vector>
 #include <chrono>
 #include <string>
@@ -17,7 +18,10 @@ using namespace std;
 class ModeSwitcher {
 public:
     ModeSwitcher() {
-        jsreader.initJoystickReader();
+        if (!jsreader.initJoystickReader()) {
+            std::cerr << "\033[31m[FATAL] No joystick detected. Connect a controller and restart. Aborting.\033[0m" << std::endl;
+            std::exit(1);
+        }
     }
 
     virtual ~ModeSwitcher() {
@@ -70,14 +74,13 @@ public:
         jsreader.fetchJoystickData();
         if ((int) jsreader.But[9]== 1) {///start ready
             key = '1';
-        } else if ((int) jsreader.But[0] == 1) { ///A stand
+        } else if ((int) jsreader.But[2] == 1) { ///X stand
             key = '2';
         } else if ((int) jsreader.But[3] == 1) {///Y motion
             rl_task_mode = 3;
             key = '3';
-        }else if ((int) jsreader.But[2] == 1) {///RL stand
-            rl_task_mode = 4;
-            key = '4';
+        } else if ((int) jsreader.But[0] == 1) {///A quit
+            key = 'q';
         } else if ((int) jsreader.But[8] == 1) {///SELECT sin test
             rl_task_mode = 5;
             key = '5';
